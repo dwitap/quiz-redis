@@ -20,8 +20,9 @@ function shuffleArray(array) {
   return array;
 }
 
-function calculateScore(time, score) {
-  switch (time) {
+function calculateScore(timeB, score) {
+  const time = 60 - timeB;
+  switch (true) {
     case time <= 10:
       score += 10;
       break;
@@ -40,10 +41,12 @@ function calculateScore(time, score) {
     case time <= 60:
       score += 5;
       break;
+    case time > 60:
+      score = 0;
+      break;
     default:
       break;
   }
-
   return score;
 }
 
@@ -136,8 +139,9 @@ const quizController = {
 
       const afterConvert = JSON.parse(getQuestion);
 
-      console.log(afterConvert);
-      const result = "";
+      const result = () => {
+        return afterConvert.correctOption == req.body.answer;
+      };
 
       let currentScore = await redis.get("scores-" + verifyUser.phone_number);
       let finalScore = 0;
@@ -146,19 +150,13 @@ const quizController = {
         "questionToAnswer-" + verifyUser.phone_number
       );
 
-      console.log(result);
+      console.log("time", timeExpire);
 
-      if (result) {
+      if (result()) {
         if (!currentScore) {
           currentScore = 10;
         }
         finalScore = calculateScore(timeExpire, Number(currentScore));
-        console.log(
-          "the final score",
-          finalScore,
-          "the currentScore",
-          currentScore
-        );
         await redis.set("scores-" + verifyUser.phone_number, finalScore);
       } else {
         if (!currentScore) {
@@ -172,9 +170,9 @@ const quizController = {
         finalScore = Number(currentScore) - 5;
       }
 
-      // res.json({
-      //   data: finalScore,
-      // });
+      res.json({
+        message: "masuk",
+      });
     } catch (error) {
       console.log(error);
       return res.status(500).json({
@@ -203,54 +201,6 @@ const quizController = {
       console.log(error);
       return res.status(500).json({
         message: "Server Error when answered",
-      });
-    }
-  },
-  randomQuiz: async (req, res) => {
-    try {
-      const username = req.body.username;
-      const user = await User.findOne({
-        raw: true,
-        where: {
-          username,
-        },
-      });
-
-      if (!user) {
-        return responseHelper(res, 401, "", "Username not found");
-      }
-
-      const phoneNumberLastDigit = parseInt(user.phone_number.slice(-1));
-      const questionBucketKey = "questionbucket-" + user.phone_number;
-
-      let questionBucketRedis = await redis.get(questionBucketKey);
-
-      if (!questionBucketRedis) {
-        const shuffledBucket = shuffleArray(dbBucket[phoneNumberLastDigit]);
-        await redis.set(questionBucketKey, JSON.stringify(shuffledBucket));
-        questionBucketRedis = JSON.stringify(shuffledBucket);
-      }
-
-      const questionActiveKey = "questionActive-" + user.phone_number;
-      let questionActive = await redis.get(questionActiveKey);
-
-      if (!questionActive) {
-        await redis.set(questionActiveKey, 0);
-        questionActive = 0;
-      } else {
-        await redis.set(questionActiveKey, Number(questionActive) + 1);
-      }
-
-      const selectedQuestion = JSON.parse(questionBucketRedis)[questionActive];
-      const foundQuestion = dbQuiz.find(
-        (item) => item.id === Number(selectedQuestion)
-      );
-
-      return res.json(foundQuestion);
-    } catch (error) {
-      console.error(error);
-      return res.status(500).json({
-        message: "Server Error show all data",
       });
     }
   },
